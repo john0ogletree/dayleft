@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Time Remaining Today</title>
+  <style>
+    /* --------------------------------------------------
+       THEME & RESETS
+    -------------------------------------------------- */
+    :root {
+      --bg-color: #030712;
+      --text-color: #f9fafb;
+      --accent-color: #38bdf8;
+      --accent-glow: rgba(56, 189, 248, 0.25);
+      --track-color: rgba(255, 255, 255, 0.05);
+      --subtext-color: #6b7280;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+
+    html, body {
+      width: 100%;
+      height: 100%;
+      background-color: var(--bg-color);
+      color: var(--text-color);
+      font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    /* --------------------------------------------------
+       FLUID RESPONSIVE CONTAINER
+       Adapts dynamically across watch faces up to 8K TVs
+    -------------------------------------------------- */
+    .container {
+      width: 100%;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+      padding: clamp(0.5rem, 3vmin, 2rem);
+    }
+
+    .timer-ring-wrapper {
+      position: relative;
+      width: min(85dvw, 85dvh);
+      height: min(85dvw, 85dvh);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .progress-svg {
+      width: 100%;
+      height: 100%;
+      transform: rotate(-90deg);
+      filter: drop-shadow(0 0 25px var(--accent-glow));
+    }
+
+    .progress-track {
+      fill: none;
+      stroke: var(--track-color);
+      stroke-width: 8;
+    }
+
+    .progress-bar {
+      fill: none;
+      stroke: var(--accent-color);
+      stroke-width: 8;
+      stroke-linecap: round;
+      stroke-dasharray: 1000;
+      stroke-dashoffset: 0;
+      transition: stroke-dashoffset 0.1s linear;
+    }
+
+    /* --------------------------------------------------
+       TYPOGRAPHY & DISPLAY (Jitter-free tabular numbers)
+    -------------------------------------------------- */
+    .digits-container {
+      position: absolute;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      width: 100%;
+    }
+
+    .time-digits {
+      font-size: clamp(2rem, 15vmin, 12rem);
+      font-weight: 700;
+      font-variant-numeric: tabular-nums;
+      font-feature-settings: "tnum";
+      letter-spacing: -0.03em;
+      line-height: 1;
+      color: var(--text-color);
+      text-shadow: 0 0 40px rgba(0, 0, 0, 0.8);
+    }
+
+    .day-progress-percentage {
+      margin-top: clamp(0.5rem, 2vmin, 1.5rem);
+      font-size: clamp(0.7rem, 2.5vmin, 1.5rem);
+      font-weight: 500;
+      letter-spacing: 0.12em;
+      color: var(--subtext-color);
+      font-variant-numeric: tabular-nums;
+      font-feature-settings: "tnum";
+    }
+
+    /* Hide subtext on extremely small screens */
+    @media (max-width: 200px), (max-height: 200px) {
+      .day-progress-percentage {
+        display: none;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="container">
+    <div class="timer-ring-wrapper">
+      <svg class="progress-svg" viewBox="0 0 360 360">
+        <circle class="progress-track" cx="180" cy="180" r="162"></circle>
+        <circle class="progress-bar" id="progressBar" cx="180" cy="180" r="162"></circle>
+      </svg>
+      <div class="digits-container">
+        <div class="time-digits" id="timeDigits">00:00:00</div>
+        <div class="day-progress-percentage" id="percentText">0.0% REMAINING</div>
+      </div>
+    </div>
+  </main>
+
+  <script>
+    const elDigits = document.getElementById('timeDigits');
+    const elPercent = document.getElementById('percentText');
+    const elProgressBar = document.getElementById('progressBar');
+
+    const RADIUS = 162;
+    const CIRCUMFERENCE = 2 * Math.PI * RADIUS;
+    elProgressBar.style.strokeDasharray = `${CIRCUMFERENCE}`;
+
+    function updateCountdown() {
+      const now = new Date();
+      
+      // Target 00:00:00 of the next local calendar day
+      const nextMidnight = new Date(
+        now.getFullYear(),
+        now.getMonth(),
+        now.getDate() + 1,
+        0, 0, 0, 0
+      );
+
+      const remainingMs = Math.max(0, nextMidnight.getTime() - now.getTime());
+
+      // Time breakdown
+      const totalSeconds = Math.floor(remainingMs / 1000);
+      const hours = Math.floor(totalSeconds / 3600);
+      const minutes = Math.floor((totalSeconds % 3600) / 60);
+      const seconds = totalSeconds % 60;
+
+      // Render HH:MM:SS with fixed-width padding
+      const hh = String(hours).padStart(2, '0');
+      const mm = String(minutes).padStart(2, '0');
+      const ss = String(seconds).padStart(2, '0');
+      elDigits.textContent = `${hh}:${mm}:${ss}`;
+
+      // Percentage of the 24-hour day remaining (86,400,000 ms)
+      const DAY_MS = 86400000;
+      const pctRemaining = (remainingMs / DAY_MS) * 100;
+      elPercent.textContent = `${pctRemaining.toFixed(1)}% REMAINING`;
+
+      // Smooth progress ring offset update
+      const offset = CIRCUMFERENCE * (1 - (remainingMs / DAY_MS));
+      elProgressBar.style.strokeDashoffset = offset;
+
+      requestAnimationFrame(updateCountdown);
+    }
+
+    // Start 60fps loop
+    requestAnimationFrame(updateCountdown);
+  </script>
+</body>
+</html>
